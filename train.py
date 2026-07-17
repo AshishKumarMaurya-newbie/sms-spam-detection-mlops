@@ -135,7 +135,7 @@ def train_model(X_train: pd.Series, y_train: pd.Series) -> Tuple[TfidfVectorizer
 )
     X_train_vec = vectorizer.fit_transform(X_train)
 
-    model = MultinomialNB(alpha=0.7)
+    model = MultinomialNB(alpha=0.1, fit_prior=False)
     model.fit(X_train_vec, y_train)
 
     return vectorizer, model

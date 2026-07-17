@@ -106,7 +106,7 @@ def serve_frontend() -> FileResponse:
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest) -> PredictionResponse:
-    """Predict whether the input message is spam or ham."""
+    """Predict whether the input message is spam or ham with a tuned sensitivity threshold."""
     logger.info("Prediction request received for text: %s", request.text)
 
     if model is None or vectorizer is None:
@@ -120,9 +120,19 @@ def predict(request: PredictionRequest) -> PredictionResponse:
         # Extract features using the loaded character-level TF-IDF vectorizer
         transformed_text = vectorizer.transform([cleaned_text])
         probability = model.predict_proba(transformed_text)[0]
-        prediction_index = int(probability.argmax())
-        predicted_label = "SPAM" if prediction_index == 1 else "HAM"
-        confidence = float(max(probability) * 100)
+        
+        # Extract probabilities explicitly: index 0 is HAM, index 1 is SPAM
+        ham_probability = probability[0]
+        spam_probability = probability[1]
+        
+        # Lower the threshold barrier to bypass dataset class imbalance skew
+        # If the model is even 10% sure it's spam, we flag it.
+        if spam_probability > 0.10:
+            predicted_label = "SPAM"
+            confidence = float(spam_probability * 100)
+        else:
+            predicted_label = "HAM"
+            confidence = float(ham_probability * 100)
 
         return PredictionResponse(
             text=request.text,
@@ -133,7 +143,6 @@ def predict(request: PredictionRequest) -> PredictionResponse:
     except Exception as exc:  # pragma: no cover - defensive error handling
         logger.exception("Prediction failed")
         raise HTTPException(status_code=500, detail="Prediction failed due to an unexpected error.") from exc
-
 
 @app.exception_handler(RequestValidationError)
 def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
