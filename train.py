@@ -64,9 +64,21 @@ def download_dataset() -> None:
 
 
 def clean_text(text: str) -> str:
-    """Normalize SMS text for better Naive Bayes performance."""
+    """Normalize SMS text using regex tokenization and structural maps for robust Naive Bayes performance."""
+    if not isinstance(text, str):
+        return ""
+    
+    # 1. Standardize case early
     text = text.lower()
-    text = re.sub(r"[^a-z0-9\s]", " ", text)
+    
+    # 2. Map URLs and numerical indicators to generic variables before character stripping
+    text = re.sub(r'http\S+|www\S+', 'urltoken', text)
+    text = re.sub(r'\d+', 'numbertoken', text)
+    
+    # 3. Collapse aggressive token separation and punctuation padding
+    text = re.sub(r'[^\w\s]', '', text)
+    
+    # 4. Standardize space blocks
     text = re.sub(r"\s+", " ", text).strip()
     return text
 
@@ -158,7 +170,7 @@ def evaluate_model(model: MultinomialNB, vectorizer: TfidfVectorizer, X_test: pd
     print(report)
 
 
-def save_artifacts(vectorizer: CountVectorizer, model: MultinomialNB) -> None:
+def save_artifacts(vectorizer: TfidfVectorizer, model: MultinomialNB) -> None:
     """Persist the trained vectorizer and model to disk."""
     joblib.dump(model, MODEL_DIR / "spam_model.pkl")
     joblib.dump(vectorizer, MODEL_DIR / "vectorizer.pkl")

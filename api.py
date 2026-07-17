@@ -6,7 +6,7 @@ import logging
 import os
 from pathlib import Path
 from typing import Any
-
+import re
 import joblib
 import uvicorn
 from fastapi import FastAPI, HTTPException, Request
@@ -55,6 +55,26 @@ model: MultinomialNB | None = None
 vectorizer: Any | None = None
 
 
+def clean_text(text: str) -> str:
+    """Normalize incoming SMS text using identical training rules for robust inference."""
+    if not isinstance(text, str):
+        return ""
+    
+    # 1. Standardize case early
+    text = text.lower()
+    
+    # 2. Map URLs and numerical indicators to generic variables before character stripping
+    text = re.sub(r'http\S+|www\S+', 'urltoken', text)
+    text = re.sub(r'\d+', 'numbertoken', text)
+    
+    # 3. Collapse aggressive token separation and punctuation padding
+    text = re.sub(r'[^\w\s]', '', text)
+    
+    # 4. Standardize space blocks
+    text = re.sub(r"\s+", " ", text).strip()
+    return text
+
+
 @app.on_event("startup")
 def load_model() -> None:
     """Load the trained model and vectorizer at startup."""
@@ -94,7 +114,11 @@ def predict(request: PredictionRequest) -> PredictionResponse:
         raise HTTPException(status_code=503, detail="Model is not available yet.")
 
     try:
-        transformed_text = vectorizer.transform([request.text])
+        # Preprocess the incoming request string using the unified cleaning rules
+        cleaned_text = clean_text(request.text)
+        
+        # Extract features using the loaded character-level TF-IDF vectorizer
+        transformed_text = vectorizer.transform([cleaned_text])
         probability = model.predict_proba(transformed_text)[0]
         prediction_index = int(probability.argmax())
         predicted_label = "SPAM" if prediction_index == 1 else "HAM"
@@ -104,7 +128,7 @@ def predict(request: PredictionRequest) -> PredictionResponse:
             text=request.text,
             prediction=predicted_label,
             confidence=round(confidence, 2),
-            algorithm="Multinomial Naive Bayes",
+            algorithm="Optimized Multinomial Naive Bayes",
         )
     except Exception as exc:  # pragma: no cover - defensive error handling
         logger.exception("Prediction failed")
