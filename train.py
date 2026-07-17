@@ -15,6 +15,7 @@ from sklearn.feature_extraction.text import CountVectorizer
 from sklearn.metrics import accuracy_score, classification_report, confusion_matrix, f1_score, precision_score, recall_score
 from sklearn.model_selection import train_test_split
 from sklearn.naive_bayes import MultinomialNB
+from sklearn.feature_extraction.text import TfidfVectorizer
 
 logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 logger = logging.getLogger(__name__)
@@ -113,14 +114,13 @@ def split_dataset(df: pd.DataFrame) -> Tuple[pd.Series, pd.Series, pd.Series, pd
     return X_train, X_test, y_train, y_test
 
 
-def train_model(X_train: pd.Series, y_train: pd.Series) -> Tuple[CountVectorizer, MultinomialNB]:
+def train_model(X_train: pd.Series, y_train: pd.Series) -> Tuple[TfidfVectorizer, MultinomialNB]:
     """Train a Naive Bayes classifier with improved text features."""
-    vectorizer = CountVectorizer(
-        stop_words="english",
-        ngram_range=(1, 2),
-        min_df=2,
-        max_features=12000,
-    )
+    vectorizer = TfidfVectorizer(
+    analyzer='char_wb', 
+    ngram_range=(3, 5), 
+    min_df=2
+)
     X_train_vec = vectorizer.fit_transform(X_train)
 
     model = MultinomialNB(alpha=0.7)
@@ -129,7 +129,7 @@ def train_model(X_train: pd.Series, y_train: pd.Series) -> Tuple[CountVectorizer
     return vectorizer, model
 
 
-def evaluate_model(model: MultinomialNB, vectorizer: CountVectorizer, X_test: pd.Series, y_test: pd.Series) -> None:
+def evaluate_model(model: MultinomialNB, vectorizer: TfidfVectorizer, X_test: pd.Series, y_test: pd.Series) -> None:
     """Evaluate the trained model and print the performance metrics."""
     X_test_vec = vectorizer.transform(X_test)
     predictions = model.predict(X_test_vec)
