@@ -1,92 +1,74 @@
-# Text Spam Detection
+# Technical Engineering Document: Building an Adversarial-Resistant Spam Detection Pipeline
 
-## Project Overview
+## System Architecture & Evolution Report
 
-This project is a simple and effective spam detection system for SMS messages. It uses a Multinomial Naive Bayes classifier combined with text preprocessing to classify incoming messages as either spam or ham.
+**Core Stack:** Python, FastAPI, Scikit-Learn, Docker
 
-The application includes:
+## 1. Executive Summary
 
-- dataset loading and preprocessing
-- model training and evaluation
-- model saving for reuse
-- a FastAPI backend for predictions
-- a lightweight frontend for real-time testing
-- Docker support for containerized deployment
+This project evolved from a basic academic text classification example into a more robust anti-spam microservice designed to handle adversarial input patterns and production-style inference challenges. The pipeline was strengthened by improving preprocessing, switching to sub-word feature representations, and adding a backend decision layer that makes the system behave more conservatively when suspicious signals appear.
 
-## Features
+## 2. System Evolution
 
-- Automatically downloads the SMS spam dataset if it is not already available locally
-- Stores the dataset in the dataset folder as spam.csv
-- Cleans and prepares text data using pandas and scikit-learn
-- Trains an optimized Multinomial Naive Bayes model with CountVectorizer
-- Evaluates the model using accuracy, precision, recall, F1 score, and a confusion matrix
-- Saves the trained model and vectorizer for reuse
-- Exposes a REST API for predictions using FastAPI
-- Provides a simple browser-based frontend for testing messages
-- Supports Docker-based deployment
+### Phase 1: Baseline Academic Model
 
-## Tech Stack
+The initial version used a basic bag-of-words approach with a standard Multinomial Naive Bayes classifier. Although effective on ordinary examples, it was vulnerable to simple obfuscation such as misspellings, punctuation variations, and lookalike substitutions.
 
-- Python 3.11
-- FastAPI
-- scikit-learn
-- pandas
-- joblib
-- Docker
+### Phase 2: Stronger Preprocessing and Feature Engineering
 
-## Project Structure
+The preprocessing pipeline was improved to normalize common adversarial patterns before classification. The system now:
 
-```text
-text-spam-detection/
-├── dataset/
-│   └── spam.csv
-├── model/
-│   ├── spam_model.pkl
-│   └── vectorizer.pkl
-├── train.py
-├── api.py
-├── predict.py
-├── index.html
-├── requirements.txt
-├── Dockerfile
-├── deploy.sh
-├── README.md
-└── .gitignore
-```
+- maps URLs to a generic token such as urltoken
+- maps numbers to a generic token such as numbertoken
+- removes punctuation in a controlled way
+- standardizes whitespace and casing
 
-## Dataset
+In addition, the project moved from word-level counting to a sub-word TF-IDF representation using character n-grams. This makes the model more resilient to small spelling variations and character-level obfuscation.
 
-The project uses the SMS Spam Collection dataset, sourced from a Kaggle-based GitHub repository.
+### Phase 3: Adversarial-Resistance Strategy
 
-Dataset source:
-https://raw.githubusercontent.com/mdrsyed/SMS-Spam-Collection-Dataset-Kaggle/main/spam.csv
+A major issue discovered during testing was the tendency of the model to produce a high confidence ham prediction for messages that contained many benign words but also a suspicious link. This is a classic failure mode in Naive Bayes classification because a long stream of ordinary tokens can overpower a single suspicious signal.
 
-If the dataset is not already present locally, the training script will download it automatically and save it in the dataset folder.
+To address this, the backend was adjusted to evaluate inference in the log-probability space (predict_log_proba) rather than standard raw probabilities. By applying a custom log-offset threshold cushion (spam_log > ham_log - 4.5), the API successfully overrides dataset bias to catch highly diluted adversarial inputs.
 
-## Model
+## 3. Engineering Approach
 
-- Algorithm: Multinomial Naive Bayes
-- Feature extraction: CountVectorizer with English stop words removed
-- Expected performance: approximately 98% accuracy
+### Preprocessing
 
-## Verified Performance
+The shared cleaning logic is implemented in both training and inference paths so the model and the live API follow the same normalization rules.
 
-The trained model achieved the following results:
+### Feature Representation
 
-- Accuracy: 0.9834
-- Precision: 0.9580
-- Recall: 0.9048
-- F1 Score: 0.9306
+The model uses a TF-IDF vectorizer configured with character n-grams in the range 3 to 5. This allows it to capture subtle text patterns and structural similarities rather than relying only on exact words.
 
-## Prerequisites
+### Classification Strategy
 
-Make sure you have the following installed:
+The model uses Multinomial Naive Bayes with:
+
+- alpha = 0.1
+- fit_prior = False
+
+This helps reduce the effect of class imbalance and makes the classifier less biased toward the majority class during inference.
+
+## 4. Why This Is a Strong Portfolio Project
+
+This project is not just a simple classifier demo. It demonstrates:
+
+- practical preprocessing for real-world text noise
+- adversarial-aware model design
+- production-oriented API development with FastAPI
+- deployment readiness using Docker
+- a thoughtful engineering response to model weaknesses rather than simply retraining with more data
+
+## 5. Deployment and Usage
+
+### Prerequisites
 
 - Python 3.11 or later
 - pip
 - Docker (optional, for containerized deployment)
 
-## Installation
+### Installation
 
 ```bash
 python -m venv .venv
@@ -94,17 +76,13 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Running the Project Locally
-
-### 1. Train the model
+### Train the model
 
 ```bash
 python train.py
 ```
 
-This step prepares the model files in the model folder.
-
-### 2. Start the API and frontend
+### Run the API
 
 ```bash
 python api.py
@@ -115,29 +93,19 @@ Then open:
 - http://127.0.0.1:8000/
 - http://127.0.0.1:8000/docs
 
-## Docker Usage
-
-Build and run the application in a container:
+### Docker Usage
 
 ```bash
 docker build -t text-spam-detection .
 docker run -p 8000:8000 text-spam-detection
 ```
 
-## API Examples
+## 6. API Example
 
 ### Health check
 
 ```bash
 curl http://127.0.0.1:8000/health
-```
-
-Example response:
-
-```json
-{
-  "status": "running"
-}
 ```
 
 ### Prediction request
@@ -154,14 +122,16 @@ Example response:
 {
   "text": "Congratulations! You won a free iPhone.",
   "prediction": "SPAM",
-  "confidence": 99.37,
-  "algorithm": "Multinomial Naive Bayes"
+  "confidence": 99.61,
+  "algorithm": "Optimized Multinomial Naive Bayes"
 }
 ```
 
-## Future Improvements
+## 7. Future Directions
 
-- Add a more advanced analytics dashboard with charts and trends
-- Compare the current Naive Bayes model with Logistic Regression or SVM
-- Improve preprocessing with stemming or lemmatization
-- Deploy the project to a cloud platform such as Azure or AWS
+Potential next steps include:
+
+- migrating to transformer-based embeddings for deeper semantic understanding
+- adding more robust adversarial evaluation datasets
+- improving observability and logging for production monitoring
+- expanding deployment to cloud platforms
