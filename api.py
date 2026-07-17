@@ -1,0 +1,135 @@
+"""FastAPI application for spam prediction."""
+
+from __future__ import annotations
+
+import logging
+import os
+from pathlib import Path
+from typing import Any
+
+import joblib
+import uvicorn
+from fastapi import FastAPI, HTTPException, Request
+from fastapi.exceptions import RequestValidationError
+from fastapi.responses import FileResponse, JSONResponse
+from pydantic import BaseModel, Field, field_validator
+from sklearn.naive_bayes import MultinomialNB
+
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logger = logging.getLogger(__name__)
+
+PROJECT_ROOT = Path(__file__).resolve().parent
+MODEL_DIR = PROJECT_ROOT / "model"
+MODEL_PATH = MODEL_DIR / "spam_model.pkl"
+VECTORIZER_PATH = MODEL_DIR / "vectorizer.pkl"
+
+app = FastAPI(title="Text Spam Detection API", version="1.0.0")
+
+
+class PredictionRequest(BaseModel):
+    """Request schema for spam prediction."""
+
+    text: str = Field(..., min_length=1, max_length=1000)
+
+    @field_validator("text")
+    @classmethod
+    def validate_text(cls, value: str) -> str:
+        """Reject empty or whitespace-only messages."""
+        if not value or not value.strip():
+            raise ValueError("Text must not be empty or whitespace only.")
+        if len(value) > 1000:
+            raise ValueError("Text must be at most 1000 characters long.")
+        return value.strip()
+
+
+class PredictionResponse(BaseModel):
+    """Response schema for spam prediction."""
+
+    text: str
+    prediction: str
+    confidence: float
+    algorithm: str
+
+
+model: MultinomialNB | None = None
+vectorizer: Any | None = None
+
+
+@app.on_event("startup")
+def load_model() -> None:
+    """Load the trained model and vectorizer at startup."""
+    global model, vectorizer
+    logger.info("API startup: loading model artifacts")
+    if not MODEL_PATH.exists() or not VECTORIZER_PATH.exists():
+        logger.error("Model files not found")
+        raise FileNotFoundError("Model files are missing. Please run train.py first.")
+
+    model = joblib.load(MODEL_PATH)
+    vectorizer = joblib.load(VECTORIZER_PATH)
+    logger.info("API startup: model artifacts loaded successfully")
+
+
+@app.get("/health")
+def health_check() -> dict[str, str]:
+    """Return a simple health status response."""
+    return {"status": "running"}
+
+
+@app.get("/", include_in_schema=False)
+def serve_frontend() -> FileResponse:
+    """Serve the browser-based spam checker frontend."""
+    index_path = PROJECT_ROOT / "index.html"
+    if not index_path.exists():
+        raise HTTPException(status_code=404, detail="Frontend page not found.")
+    return FileResponse(index_path, media_type="text/html")
+
+
+@app.post("/predict", response_model=PredictionResponse)
+def predict(request: PredictionRequest) -> PredictionResponse:
+    """Predict whether the input message is spam or ham."""
+    logger.info("Prediction request received for text: %s", request.text)
+
+    if model is None or vectorizer is None:
+        logger.error("Prediction attempted before model loading")
+        raise HTTPException(status_code=503, detail="Model is not available yet.")
+
+    try:
+        transformed_text = vectorizer.transform([request.text])
+        probability = model.predict_proba(transformed_text)[0]
+        prediction_index = int(probability.argmax())
+        predicted_label = "SPAM" if prediction_index == 1 else "HAM"
+        confidence = float(max(probability) * 100)
+
+        return PredictionResponse(
+            text=request.text,
+            prediction=predicted_label,
+            confidence=round(confidence, 2),
+            algorithm="Multinomial Naive Bayes",
+        )
+    except Exception as exc:  # pragma: no cover - defensive error handling
+        logger.exception("Prediction failed")
+        raise HTTPException(status_code=500, detail="Prediction failed due to an unexpected error.") from exc
+
+
+@app.exception_handler(RequestValidationError)
+def handle_validation_error(_: Request, exc: RequestValidationError) -> JSONResponse:
+    """Return meaningful validation errors for bad requests."""
+    logger.warning("Validation error: %s", exc)
+    return JSONResponse(status_code=422, content={"detail": exc.errors()})
+
+
+@app.exception_handler(HTTPException)
+def handle_http_error(_: Request, exc: HTTPException) -> JSONResponse:
+    """Return consistent JSON for HTTP errors."""
+    return JSONResponse(status_code=exc.status_code, content={"detail": exc.detail})
+
+
+@app.exception_handler(Exception)
+def handle_unexpected_error(_: Request, exc: Exception) -> JSONResponse:
+    """Handle unexpected exceptions gracefully."""
+    logger.exception("Unhandled exception: %s", exc)
+    return JSONResponse(status_code=500, content={"detail": "Internal server error."})
+
+
+if __name__ == "__main__":
+    uvicorn.run("api:app", host="0.0.0.0", port=8000, reload=False)

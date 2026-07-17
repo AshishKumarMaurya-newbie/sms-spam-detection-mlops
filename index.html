@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Spam Checker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        font-family: "Segoe UI", Arial, sans-serif;
+      }
+      body {
+        margin: 0;
+        background: linear-gradient(135deg, #eff6ff, #dbeafe);
+        color: #0f172a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding: 20px;
+      }
+      .card {
+        width: min(760px, 100%);
+        background: white;
+        border-radius: 20px;
+        padding: 32px;
+        box-shadow: 0 16px 45px rgba(15, 23, 42, 0.15);
+      }
+      .header {
+        margin-bottom: 16px;
+      }
+      h1 {
+        margin: 0 0 10px 0;
+        color: #1d4ed8;
+        font-size: 2rem;
+      }
+      .badge {
+        display: inline-block;
+        background: #dbeafe;
+        color: #1d4ed8;
+        border-radius: 999px;
+        padding: 6px 12px;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      .examples {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 8px;
+        margin: 8px 0 14px;
+      }
+      .example-btn {
+        background: #eff6ff;
+        color: #1d4ed8;
+        border: 1px solid #bfdbfe;
+        padding: 7px 10px;
+        border-radius: 999px;
+        font-size: 0.9rem;
+        cursor: pointer;
+        margin-top: 0;
+      }
+      .status-pill {
+        display: inline-block;
+        padding: 6px 10px;
+        border-radius: 999px;
+        background: #ecfdf3;
+        color: #047857;
+        font-size: 0.9rem;
+        font-weight: 600;
+        margin-bottom: 10px;
+      }
+      textarea {
+        width: 100%;
+        min-height: 150px;
+        border: 1px solid #cbd5e1;
+        border-radius: 12px;
+        padding: 14px;
+        font-size: 1rem;
+        resize: vertical;
+        box-sizing: border-box;
+        margin-top: 8px;
+      }
+      button {
+        margin-top: 14px;
+        background: linear-gradient(135deg, #2563eb, #1d4ed8);
+        color: white;
+        border: none;
+        border-radius: 10px;
+        padding: 11px 18px;
+        cursor: pointer;
+        font-size: 1rem;
+        font-weight: 600;
+      }
+      button:hover {
+        transform: translateY(-1px);
+        box-shadow: 0 6px 16px rgba(37, 99, 235, 0.2);
+      }
+      .result {
+        margin-top: 18px;
+        padding: 16px;
+        border-radius: 12px;
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        line-height: 1.6;
+      }
+      .stats {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 12px;
+        margin-top: 16px;
+      }
+      .panel {
+        background: #f8fafc;
+        border: 1px solid #e2e8f0;
+        border-radius: 12px;
+        padding: 12px;
+      }
+      .chart {
+        height: 10px;
+        background: #e2e8f0;
+        border-radius: 999px;
+        overflow: hidden;
+        margin-top: 8px;
+      }
+      .chart > div {
+        height: 100%;
+        background: linear-gradient(90deg, #2563eb, #38bdf8);
+        border-radius: inherit;
+      }
+      .history {
+        margin-top: 16px;
+      }
+      .history-item {
+        padding: 8px 0;
+        border-bottom: 1px solid #e2e8f0;
+        font-size: 0.95rem;
+      }
+      .spam {
+        color: #dc2626;
+        font-weight: 700;
+      }
+      .ham {
+        color: #15803d;
+        font-weight: 700;
+      }
+      .error {
+        color: #b91c1c;
+        font-weight: 600;
+      }
+    </style>
+  </head>
+  <body>
+    <div class="card">
+      <div class="header">
+        <!-- <div class="badge">Machine Learning Powered</div> -->
+        <!-- <div class="status-pill">Live spam detection ready</div> -->
+        <h1>Spam Checker</h1>
+        <p>Enter a message below to check whether it looks like spam.</p>
+        <p><strong>Model:</strong> Optimized Multinomial Naive Bayes</p>
+        <div class="examples">
+          <button
+            class="example-btn"
+            type="button"
+            onclick="loadExample('Congratulations! You won a free iPhone.')"
+          >
+            Spam Example
+          </button>
+          <button
+            class="example-btn"
+            type="button"
+            onclick="loadExample('Hi, how are you today?')"
+          >
+            Ham Example
+          </button>
+          <button
+            class="example-btn"
+            type="button"
+            onclick="loadExample('URGENT! Click now to claim your reward')"
+          >
+            Urgent Example
+          </button>
+        </div>
+      </div>
+      <textarea id="message" placeholder="Type a message here..."></textarea>
+      <button onclick="checkSpam()">Check Spam</button>
+      <div id="result" class="result">Waiting for input...</div>
+
+      <div class="stats">
+        <div class="panel">
+          <strong>Confidence</strong>
+          <div class="chart">
+            <div id="confidenceBar" style="width: 0%"></div>
+          </div>
+          <div id="confidenceValue">0%</div>
+        </div>
+        <div class="panel">
+          <strong>Recent Checks</strong>
+          <div id="history" class="history">No checks yet.</div>
+        </div>
+      </div>
+    </div>
+
+    <script>
+      const historyList = [];
+
+      function loadExample(text) {
+        document.getElementById("message").value = text;
+      }
+
+      function renderHistory() {
+        const historyBox = document.getElementById("history");
+        if (historyList.length === 0) {
+          historyBox.innerHTML = "No checks yet.";
+          return;
+        }
+
+        historyBox.innerHTML = historyList
+          .slice(0, 5)
+          .map((item) => {
+            const labelClass = item.prediction === "SPAM" ? "spam" : "ham";
+            return `<div class="history-item"><span class="${labelClass}">${item.prediction}</span> · ${item.confidence}%</div>`;
+          })
+          .join("");
+      }
+
+      async function checkSpam() {
+        const input = document.getElementById("message").value.trim();
+        const resultBox = document.getElementById("result");
+        const confidenceBar = document.getElementById("confidenceBar");
+        const confidenceValue = document.getElementById("confidenceValue");
+
+        if (!input) {
+          resultBox.innerHTML =
+            '<span class="error">Please enter a message.</span>';
+          return;
+        }
+
+        resultBox.innerHTML = "Checking...";
+
+        try {
+          const response = await fetch("/predict", {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ text: input }),
+          });
+
+          const data = await response.json();
+
+          if (!response.ok) {
+            throw new Error(data.detail || "Request failed");
+          }
+
+          const labelClass = data.prediction === "SPAM" ? "spam" : "ham";
+          resultBox.innerHTML = `
+                    <strong>Prediction:</strong> <span class="${labelClass}">${data.prediction}</span><br>
+                    <strong>Confidence:</strong> ${data.confidence}%<br>
+                    <strong>Model:</strong> ${data.algorithm}<br>
+                    <strong>Text:</strong> ${data.text}
+                `;
+
+          const confidence = Math.min(100, Math.max(0, data.confidence));
+          confidenceBar.style.width = `${confidence}%`;
+          confidenceValue.textContent = `${confidence}%`;
+
+          historyList.unshift({
+            prediction: data.prediction,
+            confidence: data.confidence,
+          });
+          renderHistory();
+        } catch (error) {
+          resultBox.innerHTML = `<span class="error">${error.message}</span>`;
+        }
+      }
+
+      renderHistory();
+    </script>
+  </body>
+</html>
