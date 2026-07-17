@@ -106,7 +106,7 @@ def serve_frontend() -> FileResponse:
 
 @app.post("/predict", response_model=PredictionResponse)
 def predict(request: PredictionRequest) -> PredictionResponse:
-    """Predict whether the input message is spam or ham with a tuned sensitivity threshold."""
+    """Predict whether the input message is spam or ham using balanced log-probabilities."""
     logger.info("Prediction request received for text: %s", request.text)
 
     if model is None or vectorizer is None:
@@ -119,20 +119,28 @@ def predict(request: PredictionRequest) -> PredictionResponse:
         
         # Extract features using the loaded character-level TF-IDF vectorizer
         transformed_text = vectorizer.transform([cleaned_text])
+        
+        # 1. Compute log-probabilities instead of normal probabilities
+        log_probability = model.predict_log_proba(transformed_text)[0]
+        
+        # 2. Extract relative log scores
+        ham_log = log_probability[0]
+        spam_log = log_probability[1]
+        
+        # Render clean output diagnostic to runtime logs
+        logger.info("LOG PROBABILITIES -> HAM: %.4f, SPAM: %.4f", ham_log, spam_log)
+        
+        # Calculate normal probabilities strictly for UI confidence score metric rendering
         probability = model.predict_proba(transformed_text)[0]
         
-        # Extract probabilities explicitly: index 0 is HAM, index 1 is SPAM
-        ham_probability = probability[0]
-        spam_probability = probability[1]
-        
-        # Lower the threshold barrier to bypass dataset class imbalance skew
-        # If the model is even 10% sure it's spam, we flag it.
-        if spam_probability > 0.10:
+        # 3. Log values are negative; the closer to 0, the more probable.
+        # We penalize ham by giving spam a protective log offset cushion.
+        if spam_log > (ham_log - 4.5):  # Adjusting this value dynamically forces aggressive spam catching
             predicted_label = "SPAM"
-            confidence = float(spam_probability * 100)
+            confidence = float(probability[1] * 100)
         else:
             predicted_label = "HAM"
-            confidence = float(ham_probability * 100)
+            confidence = float(probability[0] * 100)
 
         return PredictionResponse(
             text=request.text,
@@ -140,6 +148,7 @@ def predict(request: PredictionRequest) -> PredictionResponse:
             confidence=round(confidence, 2),
             algorithm="Optimized Multinomial Naive Bayes",
         )
+        
     except Exception as exc:  # pragma: no cover - defensive error handling
         logger.exception("Prediction failed")
         raise HTTPException(status_code=500, detail="Prediction failed due to an unexpected error.") from exc
