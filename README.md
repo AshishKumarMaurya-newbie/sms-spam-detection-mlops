@@ -1,21 +1,38 @@
-# Text Analytics for Spam Detection using Naive Bayes
+# Text Spam Detection
 
 ## Project Overview
 
-This project implements a complete spam detection system for SMS messages using a Multinomial Naive Bayes classifier. It includes dataset loading, preprocessing, model training, evaluation, model serialization, a FastAPI backend, and a lightweight browser-based frontend for real-time prediction.
+This project is a simple and effective spam detection system for SMS messages. It uses a Multinomial Naive Bayes classifier combined with text preprocessing to classify incoming messages as either spam or ham.
+
+The application includes:
+
+- dataset loading and preprocessing
+- model training and evaluation
+- model saving for reuse
+- a FastAPI backend for predictions
+- a lightweight frontend for real-time testing
+- Docker support for containerized deployment
 
 ## Features
 
-- Automatically downloads the SMS spam dataset if it is not already present locally
+- Automatically downloads the SMS spam dataset if it is not already available locally
 - Stores the dataset in the dataset folder as spam.csv
-- Cleans and prepares the data using pandas
+- Cleans and prepares text data using pandas and scikit-learn
 - Trains an optimized Multinomial Naive Bayes model with CountVectorizer
-- Improves text normalization with cleaner preprocessing for SMS-style messages
-- Evaluates the model using accuracy, precision, recall, F1 score, confusion matrix, and classification report
+- Evaluates the model using accuracy, precision, recall, F1 score, and a confusion matrix
 - Saves the trained model and vectorizer for reuse
 - Exposes a REST API for predictions using FastAPI
-- Includes a polished frontend UI with example prompts, confidence feedback, and recent-check history
+- Provides a simple browser-based frontend for testing messages
 - Supports Docker-based deployment
+
+## Tech Stack
+
+- Python 3.11
+- FastAPI
+- scikit-learn
+- pandas
+- joblib
+- Docker
 
 ## Project Structure
 
@@ -39,27 +56,35 @@ text-spam-detection/
 
 ## Dataset
 
-The project uses a SMS Spam Collection dataset sourced from a Kaggle-based GitHub repository.
+The project uses the SMS Spam Collection dataset, sourced from a Kaggle-based GitHub repository.
 
 Dataset source:
 https://raw.githubusercontent.com/mdrsyed/SMS-Spam-Collection-Dataset-Kaggle/main/spam.csv
 
-The training script automatically downloads the CSV file if it is not already available locally and saves it inside the dataset directory as spam.csv.
+If the dataset is not already present locally, the training script will download it automatically and save it in the dataset folder.
 
 ## Model
 
-- Algorithm: Optimized Multinomial Naive Bayes
+- Algorithm: Multinomial Naive Bayes
 - Feature extraction: CountVectorizer with English stop words removed
-- Expected accuracy: approximately 98%
+- Expected performance: approximately 98% accuracy
 
 ## Verified Performance
 
-The upgraded model was trained successfully and achieved:
+The trained model achieved the following results:
 
 - Accuracy: 0.9834
 - Precision: 0.9580
 - Recall: 0.9048
 - F1 Score: 0.9306
+
+## Prerequisites
+
+Make sure you have the following installed:
+
+- Python 3.11 or later
+- pip
+- Docker (optional, for containerized deployment)
 
 ## Installation
 
@@ -69,7 +94,7 @@ python -m venv .venv
 pip install -r requirements.txt
 ```
 
-## Running Locally
+## Running the Project Locally
 
 ### 1. Train the model
 
@@ -77,7 +102,9 @@ pip install -r requirements.txt
 python train.py
 ```
 
-### 2. Run the API and frontend
+This step prepares the model files in the model folder.
+
+### 2. Start the API and frontend
 
 ```bash
 python api.py
@@ -89,6 +116,8 @@ Then open:
 - http://127.0.0.1:8000/docs
 
 ## Docker Usage
+
+Build and run the application in a container:
 
 ```bash
 docker build -t text-spam-detection .
@@ -134,5 +163,5 @@ Example response:
 
 - Add a more advanced analytics dashboard with charts and trends
 - Compare the current Naive Bayes model with Logistic Regression or SVM
-- Add further preprocessing enhancements such as stemming and lemmatization
+- Improve preprocessing with stemming or lemmatization
 - Deploy the project to a cloud platform such as Azure or AWS
